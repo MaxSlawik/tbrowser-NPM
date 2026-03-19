@@ -24,7 +24,7 @@ The npm package can run the server itself with `tbrowser serve`. It does not dep
 ## Install
 
 ```bash
-npm install tbrowser
+npm install @maximilianslawik/tbrowser
 ```
 
 ## Requirements
@@ -99,7 +99,7 @@ http://127.0.0.1:3000
 ## Client usage
 
 ```ts
-import { TbrowserClient } from "tbrowser";
+import { TbrowserClient } from "@maximilianslawik/tbrowser";
 
 const client = new TbrowserClient({
   baseUrl: "http://127.0.0.1:3000"
@@ -120,7 +120,7 @@ console.log(snapshot.title);
 ## Embedded server usage from code
 
 ```ts
-import { createTbrowserServer } from "tbrowser";
+import { createTbrowserServer } from "@maximilianslawik/tbrowser";
 
 const server = await createTbrowserServer({
   bindAddr: "127.0.0.1:3000",
