@@ -1,6 +1,6 @@
 {
   "name": "@maximilianslawik/tbrowser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Full Node.js and npm runtime for the tbrowser local browser control plane",
   "type": "module",
   "main": "./dist/src/index.js",

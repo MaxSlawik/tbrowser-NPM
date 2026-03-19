@@ -74,16 +74,26 @@ async function main(): Promise<void> {
 }
 
 async function handleServe(args: string[]): Promise<void> {
+  const requestedPublicHost = nullToUndefined(takeOption(args, "--public-host"));
   const server = await createTbrowserServer(
     compactObject({
       bindAddr: nullToUndefined(takeOption(args, "--bind-addr")),
       dataDir: nullToUndefined(takeOption(args, "--data-dir")),
       browserImage: nullToUndefined(takeOption(args, "--browser-image")),
-      publicHost: nullToUndefined(takeOption(args, "--public-host"))
+      publicHost: requestedPublicHost
     })
   );
   await server.listen();
-  console.log(JSON.stringify({ bind_addr: server.config.bindAddr, data_dir: server.config.dataDir }, null, 2));
+  const apiUrl = httpUrlForBindAddr(server.config.bindAddr, server.config.publicHost);
+  console.log(JSON.stringify({
+    bind_addr: server.config.bindAddr,
+    data_dir: server.config.dataDir,
+    api_url: apiUrl,
+    health_url: `${apiUrl}/healthz`,
+    sessions_url: `${apiUrl}/v1/sessions`,
+    live_view_url: "per-session",
+    live_view_note: "Create a desktop session with launch.headless=false, then call GET /v1/sessions/{session_id}/live or run `tbrowser sessions live <session_id>`."
+  }, null, 2));
   await new Promise<void>((resolve, reject) => {
     const shutdown = () => {
       void server.close().then(resolve).catch(reject);
@@ -462,6 +472,13 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
 
 function nullToUndefined<T>(value: T | null): T | undefined {
   return value === null ? undefined : value;
+}
+
+function httpUrlForBindAddr(bindAddr: string, publicHost: string): string {
+  const [rawHost, rawPort] = bindAddr.split(":");
+  const host = rawHost === "0.0.0.0" || rawHost === "::" ? publicHost : rawHost;
+  const port = rawPort ?? "3000";
+  return `http://${host}:${port}`;
 }
 
 main().catch((error) => {

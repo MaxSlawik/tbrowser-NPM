@@ -219,6 +219,50 @@ describe("CLI", () => {
 
     assert.deepEqual(JSON.parse(output), { ok: "ok" });
   });
+
+  it("prints api and live-view guidance for serve", async () => {
+    const cliPath = join(process.cwd(), "dist", "src", "cli.js");
+    const dataDir = await mkdtemp(join(os.tmpdir(), "tbrowser-npm-serve-"));
+    const output = await new Promise<string>((resolve, reject) => {
+      const child = spawn(
+        process.execPath,
+        [cliPath, "serve", "--bind-addr", "127.0.0.1:38112", "--public-host", "127.0.0.1", "--data-dir", dataDir],
+        {
+          cwd: process.cwd(),
+          stdio: ["ignore", "pipe", "pipe"]
+        }
+      );
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+        if (stdout.includes("\n}\n") || stdout.trimEnd().endsWith("}")) {
+          settled = true;
+          child.kill("SIGINT");
+          resolve(stdout);
+        }
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+      child.on("exit", (code, signal) => {
+        if (settled) {
+          return;
+        }
+        reject(new Error(`serve exited early with code=${code} signal=${signal}: ${stderr}`));
+      });
+    });
+
+    const parsed = JSON.parse(output) as Record<string, string>;
+    assert.equal(parsed.bind_addr, "127.0.0.1:38112");
+    assert.equal(parsed.api_url, "http://127.0.0.1:38112");
+    assert.equal(parsed.health_url, "http://127.0.0.1:38112/healthz");
+    assert.equal(parsed.sessions_url, "http://127.0.0.1:38112/v1/sessions");
+    assert.equal(parsed.live_view_url, "per-session");
+    assert.equal(typeof parsed.live_view_note, "string");
+    assert.match(parsed.live_view_note!, /launch\.headless=false/);
+  });
 });
 
 describe("Server", () => {
