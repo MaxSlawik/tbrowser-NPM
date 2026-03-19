@@ -1,5 +1,5 @@
 {
-  "name": "tbrowser-npm",
+  "name": "tbrowser",
   "version": "0.1.0",
   "description": "Full Node.js and npm runtime for the tbrowser local browser control plane",
   "type": "module",
@@ -12,7 +12,7 @@
     }
   },
   "bin": {
-    "tbrowser": "./dist/src/cli.js"
+    "tbrowser": "dist/src/cli.js"
   },
   "files": [
     "dist/src",

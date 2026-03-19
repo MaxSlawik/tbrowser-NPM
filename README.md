@@ -1,4 +1,4 @@
-# tbrowser-NPM
+# tbrowser
 
 Full Node.js and npm runtime for [`tbrowser`](https://github.com/MaxSlawik/tbrowser).
 
@@ -24,7 +24,7 @@ The npm package can run the server itself with `tbrowser serve`. It does not dep
 ## Install
 
 ```bash
-npm install tbrowser-npm
+npm install tbrowser
 ```
 
 ## Requirements
@@ -99,7 +99,7 @@ http://127.0.0.1:3000
 ## Client usage
 
 ```ts
-import { TbrowserClient } from "tbrowser-npm";
+import { TbrowserClient } from "tbrowser";
 
 const client = new TbrowserClient({
   baseUrl: "http://127.0.0.1:3000"
@@ -120,7 +120,7 @@ console.log(snapshot.title);
 ## Embedded server usage from code
 
 ```ts
-import { createTbrowserServer } from "tbrowser-npm";
+import { createTbrowserServer } from "tbrowser";
 
 const server = await createTbrowserServer({
   bindAddr: "127.0.0.1:3000",
