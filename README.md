@@ -1,17 +1,25 @@
 # tbrowser-NPM
 
-Node.js and npm client for [`tbrowser`](https://github.com/MaxSlawik/tbrowser), the local browser control plane for isolated Chromium sessions.
+Full Node.js and npm runtime for [`tbrowser`](https://github.com/MaxSlawik/tbrowser).
 
-This package gives Node applications and scripts first-class access to the full `tbrowser` API:
+This repository now includes both:
 
-- session lifecycle
-- navigation, eval, snapshots, screenshots
-- desktop input actions
-- approvals and policy
-- uploads, downloads, artifacts
-- tabs, traces, network capture
+- a typed Node client and CLI
+- a full Node control plane that launches isolated Chromium sessions in Docker
+
+The npm package can run the server itself with `tbrowser serve`. It does not depend on the Rust implementation at runtime.
+
+## What it includes
+
+- session lifecycle API
+- navigation, eval, DOM snapshots, screenshots
+- desktop mouse and keyboard control through `docker exec` + `xdotool`
+- approvals and local policy enforcement
+- uploads, download detection, artifacts
+- tabs, network captures, traces
 - audit history and WebSocket session events
-- profile import and export
+- named profile import and export
+- bundled browser image assets for local Docker builds
 
 ## Install
 
@@ -22,15 +30,73 @@ npm install tbrowser-npm
 ## Requirements
 
 - Node.js 18 or newer
-- a running `tbrowser` API instance
+- Docker daemon reachable from the local host
 
-Default API base URL:
+## Build the browser image
+
+The server expects a browser image tagged as `tbrowser/browser-base:local` unless you override `TBROWSER_BROWSER_IMAGE`.
+
+From this repository:
+
+```bash
+npm run build:image
+```
+
+## Run the server
+
+```bash
+tbrowser serve
+```
+
+Or with explicit settings:
+
+```bash
+tbrowser serve \
+  --bind-addr 127.0.0.1:3000 \
+  --data-dir ./storage \
+  --browser-image tbrowser/browser-base:local \
+  --public-host 127.0.0.1
+```
+
+Default API base:
 
 ```text
 http://127.0.0.1:3000
 ```
 
-## Library usage
+## Environment variables
+
+- `TBROWSER_BIND_ADDR`
+  Default: `127.0.0.1:3000`
+- `TBROWSER_DATA_DIR`
+  Default: `./storage`
+- `TBROWSER_DATABASE_URL`
+  Default: `sqlite:${TBROWSER_DATA_DIR}/state/tbrowser.db`
+- `TBROWSER_BROWSER_IMAGE`
+  Default: `tbrowser/browser-base:local`
+- `TBROWSER_PUBLIC_HOST`
+  Default: `127.0.0.1`
+- `TBROWSER_CLEANUP_INTERVAL_SECONDS`
+  Default: `30`
+- `TBROWSER_IDLE_TIMEOUT_SECONDS`
+  Default: `300`
+- `TBROWSER_APPROVAL_TTL_SECONDS`
+  Default: `600`
+- `TBROWSER_POLICY_PATH`
+  Optional JSON file for blocked hosts, approval hosts, approval-gated actions, and sensitive eval keywords
+
+## Policy file shape
+
+```json
+{
+  "blocked_hosts": ["*.internal.example"],
+  "approval_hosts": ["accounts.google.com", "*.bank.example"],
+  "approval_actions": ["desktop", "upload", "download", "tab_close"],
+  "sensitive_eval_keywords": ["document.cookie", "navigator.clipboard"]
+}
+```
+
+## Client usage
 
 ```ts
 import { TbrowserClient } from "tbrowser-npm";
@@ -49,64 +115,26 @@ const session = await client.createSession({
 
 const snapshot = await client.snapshot(session.id);
 console.log(snapshot.title);
-
-const screenshotPath = await client.saveScreenshot(
-  session.id,
-  "./artifacts/example.png",
-  { format: "png" }
-);
-
-console.log({ screenshotPath });
 ```
 
-## File upload helpers
+## Embedded server usage from code
 
 ```ts
-import { TbrowserClient } from "tbrowser-npm";
+import { createTbrowserServer } from "tbrowser-npm";
 
-const client = new TbrowserClient();
-
-await client.uploadFileFromPath("session-id", {
-  selector: "#file-input",
-  path: "./fixtures/invoice.pdf"
+const server = await createTbrowserServer({
+  bindAddr: "127.0.0.1:3000",
+  dataDir: "./storage"
 });
 
-await client.uploadText("session-id", {
-  selector: "#file-input",
-  fileName: "note.txt",
-  text: "uploaded from Node"
-});
+await server.listen();
 ```
 
-## Download helpers
-
-```ts
-const result = await client.waitForDownloadToPath(
-  "session-id",
-  "./downloads",
-  { timeout_ms: 20_000 }
-);
-
-console.log(result.destinationPath);
-```
-
-## WebSocket session events
-
-```ts
-const stream = client.subscribeSessionEvents("session-id");
-await stream.waitUntilOpen();
-
-stream.on("event", (event) => {
-  console.log(event.kind, event.payload);
-});
-```
-
-## CLI usage
-
-After install, the package exposes a `tbrowser` binary:
+## CLI examples
 
 ```bash
 tbrowser health
+tbrowser policy
 tbrowser sessions create --json '{"label":"demo","launch":{"headless":true}}'
 tbrowser sessions navigate SESSION_ID --url https://example.com
 tbrowser sessions screenshot SESSION_ID --output ./page.png
@@ -114,45 +142,60 @@ tbrowser uploads from-path SESSION_ID --selector '#upload' --path ./document.pdf
 tbrowser events stream SESSION_ID
 ```
 
-CLI base URL selection:
-
-```bash
-tbrowser --base-url http://127.0.0.1:3000 health
-TBROWSER_BASE_URL=http://127.0.0.1:3000 tbrowser policy
-```
-
 ## API coverage
 
-`TbrowserClient` includes methods for the full current server surface:
+The Node runtime exposes the same control-plane surface as the Rust repo:
 
-- `health`
-- `getPolicy`
-- `listProfiles`, `getProfile`, `importProfile`, `exportProfile`
-- `listSessions`, `createSession`, `getSession`, `closeSession`, `getLiveView`
-- `navigate`, `evaluate`, `snapshot`, `screenshot`, `saveScreenshot`
-- `listEvents`, `subscribeSessionEvents`
-- `listApprovals`, `createApproval`, `decideApproval`
-- `listArtifacts`, `downloadArtifact`, `downloadArtifactToPath`
-- `listTabs`, `createTab`, `activateTab`, `closeTab`
-- `uploadFile`, `uploadFileFromPath`, `uploadText`
-- `waitForDownload`, `waitForDownloadToPath`
-- `captureNetwork`, `captureTrace`
-- `moveMouse`, `clickMouse`, `dragMouse`, `typeText`, `pressKey`, `dragElement`
-- `requestJson`, `requestBinary`
+- `POST /v1/sessions`
+- `GET /v1/sessions`
+- `GET /v1/sessions/{session_id}`
+- `DELETE /v1/sessions/{session_id}`
+- `GET /v1/sessions/{session_id}/live`
+- `POST /v1/sessions/{session_id}/navigate`
+- `POST /v1/sessions/{session_id}/eval`
+- `POST /v1/sessions/{session_id}/snapshot`
+- `POST /v1/sessions/{session_id}/screenshot`
+- `GET /v1/sessions/{session_id}/events`
+- `GET /v1/sessions/{session_id}/events/ws`
+- `GET /v1/policy`
+- `GET /v1/sessions/{session_id}/approvals`
+- `POST /v1/sessions/{session_id}/approvals`
+- `POST /v1/approvals/{approval_id}/decision`
+- `GET /v1/sessions/{session_id}/artifacts`
+- `GET /v1/sessions/{session_id}/artifacts/{artifact_id}`
+- `GET /v1/sessions/{session_id}/tabs`
+- `POST /v1/sessions/{session_id}/tabs`
+- `POST /v1/sessions/{session_id}/tabs/{tab_id}/activate`
+- `POST /v1/sessions/{session_id}/tabs/{tab_id}/close`
+- `POST /v1/sessions/{session_id}/uploads`
+- `POST /v1/sessions/{session_id}/downloads/wait`
+- `POST /v1/sessions/{session_id}/captures/network`
+- `POST /v1/sessions/{session_id}/captures/trace`
+- `POST /v1/sessions/{session_id}/desktop/mouse/move`
+- `POST /v1/sessions/{session_id}/desktop/mouse/click`
+- `POST /v1/sessions/{session_id}/desktop/mouse/drag`
+- `POST /v1/sessions/{session_id}/desktop/keyboard/type`
+- `POST /v1/sessions/{session_id}/desktop/keyboard/key`
+- `POST /v1/sessions/{session_id}/desktop/drag-element`
+- `GET /v1/profiles`
+- `GET /v1/profiles/{profile_id}`
+- `POST /v1/profiles/import`
+- `POST /v1/profiles/{profile_id}/export`
 
 ## Development
 
 ```bash
 npm install
 npm test
+npm run build:image
 ```
 
 ## Publish
 
-The repository is structured for `npm publish`:
+The package is structured for `npm publish`:
 
 ```bash
 npm publish
 ```
 
-If you want a scoped package name instead of `tbrowser-npm`, change the `name` field in `package.json` before publishing.
+If you want a scoped package name, change the `name` field in `package.json` before publishing.

@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 
 import { WebSocketServer } from "ws";
 
-import { TbrowserApiError, TbrowserClient } from "../src/index.js";
+import { TbrowserApiError, TbrowserClient, createTbrowserServer } from "../src/index.js";
 
 let server: http.Server;
 let wsServer: WebSocketServer;
@@ -218,5 +218,25 @@ describe("CLI", () => {
     });
 
     assert.deepEqual(JSON.parse(output), { ok: "ok" });
+  });
+});
+
+describe("Server", () => {
+  it("starts the embedded control plane and serves health and policy", async () => {
+    const dataDir = await mkdtemp(join(os.tmpdir(), "tbrowser-npm-server-"));
+    const server = await createTbrowserServer({
+      bindAddr: "127.0.0.1:38111",
+      dataDir,
+      databasePath: join(dataDir, "state", "tbrowser.db")
+    });
+    await server.listen();
+    try {
+      const health = await fetch("http://127.0.0.1:38111/healthz");
+      assert.equal(await health.text(), "ok");
+      const policy = await fetch("http://127.0.0.1:38111/v1/policy").then(async (response) => response.json());
+      assert.ok(Array.isArray(policy.approval_actions));
+    } finally {
+      await server.close();
+    }
   });
 });

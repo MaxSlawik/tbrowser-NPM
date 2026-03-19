@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>tbrowser live</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            background: #10161f;
+        }
+
+        body {
+            overflow: hidden;
+        }
+
+        #screen {
+            height: 100%;
+            width: 100%;
+        }
+
+        #screen canvas {
+            display: block;
+            margin: 0 auto;
+        }
+
+        #status {
+            position: fixed;
+            left: 12px;
+            bottom: 12px;
+            z-index: 10;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(16, 22, 31, 0.76);
+            color: rgba(255, 255, 255, 0.88);
+            font: 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 180ms ease;
+        }
+
+        #status.visible {
+            opacity: 1;
+        }
+    </style>
+    <script type="module">
+        import RFB from "./core/rfb.js";
+
+        const screen = document.getElementById("screen");
+        const status = document.getElementById("status");
+
+        function readParam(name, defaultValue = "") {
+            const url = new URL(window.location.href);
+            return url.searchParams.get(name) ?? defaultValue;
+        }
+
+        function readHashParam(name, defaultValue = "") {
+            const hash = window.location.hash.startsWith("#")
+                ? window.location.hash.slice(1)
+                : window.location.hash;
+            const params = new URLSearchParams(hash);
+            return params.get(name) ?? defaultValue;
+        }
+
+        function setStatus(text, visible = true) {
+            status.textContent = text;
+            status.classList.toggle("visible", visible);
+        }
+
+        function socketUrl() {
+            const host = readParam("host", window.location.hostname);
+            const port = readParam("port", window.location.port);
+            const path = readParam("path", "websockify").replace(/^\/+/, "");
+            const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+            return `${protocol}://${host}${port ? `:${port}` : ""}/${path}`;
+        }
+
+        const rfb = new RFB(screen, socketUrl());
+        rfb.scaleViewport = readParam("scale", "true") !== "false";
+        rfb.resizeSession = readParam("resize", "false") === "remote";
+        rfb.viewOnly = readHashParam("view_only", readParam("view_only", "true")) === "true";
+        rfb.background = "#10161f";
+        rfb.clipViewport = false;
+        rfb.focusOnClick = true;
+        rfb.qualityLevel = Number.parseInt(readParam("quality", "6"), 10);
+        rfb.compressionLevel = Number.parseInt(readParam("compression", "2"), 10);
+        rfb.showDotCursor = true;
+
+        setStatus("Connecting");
+
+        rfb.addEventListener("connect", () => {
+            setStatus("Connected");
+            window.setTimeout(() => setStatus("", false), 900);
+        });
+
+        rfb.addEventListener("disconnect", (event) => {
+            setStatus(event.detail.clean ? "Disconnected" : "Connection lost");
+        });
+
+        rfb.addEventListener("credentialsrequired", () => {
+            const password = readHashParam("password");
+            if (password) {
+                rfb.sendCredentials({ password });
+                return;
+            }
+            setStatus("Password required");
+        });
+
+        window.rfb = rfb;
+    </script>
+</head>
+<body>
+    <div id="screen"></div>
+    <div id="status" aria-live="polite"></div>
+</body>
+</html>

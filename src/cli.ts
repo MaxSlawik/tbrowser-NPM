@@ -4,12 +4,18 @@ import { writeFile } from "node:fs/promises";
 import process from "node:process";
 
 import { TbrowserApiError, TbrowserClient } from "./client.js";
+import { createTbrowserServer } from "./server.js";
 import type { JsonValue } from "./types.js";
 
 async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2);
   if (rawArgs.length === 0 || hasFlag(rawArgs, "--help") || hasFlag(rawArgs, "-h")) {
     printHelp();
+    return;
+  }
+
+  if (rawArgs[0] === "serve") {
+    await handleServe(rawArgs.slice(1));
     return;
   }
 
@@ -65,6 +71,26 @@ async function main(): Promise<void> {
   }
 
   printJson(result, pretty);
+}
+
+async function handleServe(args: string[]): Promise<void> {
+  const server = await createTbrowserServer(
+    compactObject({
+      bindAddr: nullToUndefined(takeOption(args, "--bind-addr")),
+      dataDir: nullToUndefined(takeOption(args, "--data-dir")),
+      browserImage: nullToUndefined(takeOption(args, "--browser-image")),
+      publicHost: nullToUndefined(takeOption(args, "--public-host"))
+    })
+  );
+  await server.listen();
+  console.log(JSON.stringify({ bind_addr: server.config.bindAddr, data_dir: server.config.dataDir }, null, 2));
+  await new Promise<void>((resolve, reject) => {
+    const shutdown = () => {
+      void server.close().then(resolve).catch(reject);
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+  });
 }
 
 async function handleRawRequest(client: TbrowserClient, args: string[]): Promise<unknown> {
@@ -401,6 +427,7 @@ function printHelp(): void {
 
 Usage:
   tbrowser [--base-url URL] <command>
+  tbrowser serve [--bind-addr HOST:PORT] [--data-dir PATH]
 
 Core commands:
   tbrowser health
@@ -422,6 +449,7 @@ Other groups:
   profiles, approvals, artifacts, tabs, uploads, downloads, captures, desktop, events
 
 Examples:
+  tbrowser serve --bind-addr 127.0.0.1:3000
   tbrowser sessions create --json '{"label":"demo","initial_url":"https://example.com","launch":{"headless":true}}'
   tbrowser uploads from-path <session_id> --selector '#upload' --path ./invoice.pdf
   tbrowser events stream <session_id>

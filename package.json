@@ -1,7 +1,7 @@
 {
   "name": "tbrowser-npm",
   "version": "0.1.0",
-  "description": "Node.js and npm client for the tbrowser local browser control plane",
+  "description": "Full Node.js and npm runtime for the tbrowser local browser control plane",
   "type": "module",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
@@ -16,11 +16,13 @@
   },
   "files": [
     "dist/src",
+    "docker",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:image": "docker build -t tbrowser/browser-base:local -f docker/browser-base/Dockerfile .",
     "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', { recursive: true, force: true }))\"",
     "prepare": "npm run clean && npm run build",
     "pretest": "npm run clean && npm run build",
@@ -49,12 +51,21 @@
   "license": "MIT",
   "author": "MaxSlawik",
   "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "dockerode": "^4.0.9",
+    "express": "^5.1.0",
     "mime-types": "^3.0.1",
+    "tar": "^7.5.1",
+    "uuid": "^13.0.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/dockerode": "^3.3.40",
+    "@types/express": "^5.0.3",
     "@types/mime-types": "^2.1.4",
     "@types/node": "^24.6.1",
+    "@types/tar": "^6.1.13",
     "@types/ws": "^8.18.1",
     "typescript": "^5.9.3"
   }
